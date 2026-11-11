@@ -490,9 +490,19 @@ function ausgabeDialog(a = null) {
     f.addEventListener("change", vorschau);
     vorschau();
     if (nurLesen) return;
+    const katNamen = Object.keys(S.kat).map(katName);
     $$("#kats button", f).forEach((b) => (b.onclick = () => {
       kat = b.dataset.k;
       $$("#kats button", f).forEach((x) => x.classList.toggle("active", x === b));
+      // „Wofür“ vorbelegen: wenn leer oder nur ein Kategoriename drinsteht
+      // (z. B. „Essen“ oder „Essen “) – eigener Text wie „Essen Tapas-Bar“ bleibt.
+      const w = f.beschreibung;
+      const alt = w.value.trim();
+      if (!alt || katNamen.includes(alt)) {
+        w.value = katName(kat) + " ";
+        w.focus();
+        w.setSelectionRange(w.value.length, w.value.length);
+      }
     }));
     $("#alle", f).onclick = () => { $$("#auswahl input[type=checkbox]", f).forEach((c) => (c.checked = true)); vorschau(); };
     $("#keiner", f).onclick = () => { $$("#auswahl input[type=checkbox]", f).forEach((c) => (c.checked = false)); vorschau(); };
