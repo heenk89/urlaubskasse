@@ -255,8 +255,11 @@ function angemeldet() {
   $("#menuUser").innerHTML = `Angemeldet als <b>${esc(S.user.name)}</b> (${esc(S.user.login)})` +
     (S.user.admin ? ' <span class="tag">Admin</span>' : "");
   $("#menuBenutzer").classList.toggle("hidden", !S.user.admin);
-  $("#menuUpdate").classList.toggle("hidden", !S.user.admin);
-  $("#menuUpdate").onclick = () => { $("#menu").classList.add("hidden"); updateDialog(); };
+  const mu = $("#menuUpdate");
+  if (mu) {
+    mu.classList.toggle("hidden", !S.user.admin);
+    mu.onclick = () => { $("#menu").classList.add("hidden"); updateDialog(); };
+  }
   fuss();
 }
 

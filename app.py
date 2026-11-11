@@ -1122,7 +1122,9 @@ def export_csv(pid):
 # ================================================================ Seiten
 @app.get("/")
 def index():
-    return send_from_directory(BASE / "static", "index.html")
+    resp = send_from_directory(BASE / "static", "index.html")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @app.get("/static/<path:name>")
