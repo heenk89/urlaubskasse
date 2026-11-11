@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f6e8c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Urlaubskasse">
+<title>Urlaubskasse</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon.svg">
+</head>
+<body>
+<header class="top">
+  <button class="icon-btn hidden" id="btnZurueck" title="Zurück" aria-label="Zurück">‹</button>
+  <h1 id="titel"><img src="/static/icon.svg" alt="" width="28" height="28"> <span>Urlaubskasse</span></h1>
+  <div class="menu-wrap hidden" id="menuWrap">
+    <button class="icon-btn" id="btnMenu" aria-label="Menü">☰</button>
+    <div class="menu hidden" id="menu">
+      <div class="menu-user" id="menuUser"></div>
+      <a href="#/">🧳 Projekte</a>
+      <a href="#/benutzer" id="menuBenutzer" class="hidden">👥 Benutzer verwalten</a>
+      <a href="#/konto">🔑 Mein Konto</a>
+      <button id="btnLogout">↩ Abmelden</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <!-- Anmeldung / Einrichtung -->
+  <section id="viewLogin" class="hidden">
+    <form class="login-box" id="formLogin" autocomplete="on">
+      <img src="/static/icon.svg" alt="" width="64" height="64">
+      <h2 id="loginTitel">Anmelden</h2>
+      <p class="muted small" id="loginText">Melde dich mit deinem Benutzernamen an.</p>
+      <input name="login" placeholder="Benutzername" autocomplete="username" autocapitalize="off" required>
+      <input name="name" placeholder="Anzeigename (z. B. Daniel)" class="hidden" autocomplete="name">
+      <input name="passwort" type="password" placeholder="Passwort" autocomplete="current-password" required>
+      <input name="passwort2" type="password" placeholder="Passwort wiederholen" class="hidden" autocomplete="new-password">
+      <button class="btn primary" type="submit" id="btnLogin">Anmelden</button>
+      <p class="err" id="loginErr"></p>
+    </form>
+  </section>
+
+  <!-- Projektliste -->
+  <section id="viewProjekte" class="hidden">
+    <div class="list" id="projektListe"></div>
+    <button class="fab" id="btnProjektNeu">＋ Neues Projekt</button>
+  </section>
+
+  <!-- Ein Projekt -->
+  <section id="viewProjekt" class="hidden">
+    <div class="proj-head" id="projKopf"></div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="ausgaben">💶<span>Ausgaben</span></button>
+      <button data-tab="auswertung">⚖️<span>Auswertung</span></button>
+      <button data-tab="teilnehmer">👥<span>Teilnehmer</span></button>
+      <button data-tab="verlauf">🕓<span>Verlauf</span></button>
+    </nav>
+    <div id="tabInhalt"></div>
+  </section>
+
+  <!-- Benutzer (Admin) -->
+  <section id="viewBenutzer" class="hidden">
+    <div class="box">
+      <h3>👥 Benutzer</h3>
+      <p class="muted small">Benutzer brauchst du nur, wenn andere selbst eintragen sollen.
+        Teilnehmer ohne Konto (nur Name) gehen immer – dann trägst du für sie ein.</p>
+      <div class="list" id="benutzerListe"></div>
+      <div class="dlg-actions" style="justify-content:flex-start">
+        <button class="btn primary" id="btnBenutzerNeu">＋ Benutzer anlegen</button>
+        <a class="btn" href="/api/backup">⬇ Backup der Datenbank</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Konto -->
+  <section id="viewKonto" class="hidden">
+    <form class="box form" id="formName">
+      <h3>👤 Mein Name</h3>
+      <label>Anzeigename<input name="name" required maxlength="60"></label>
+      <div class="dlg-actions"><button class="btn primary" type="submit">Speichern</button></div>
+    </form>
+    <form class="box form" id="formPasswort">
+      <h3>🔑 Passwort ändern</h3>
+      <label>Bisheriges Passwort<input name="alt" type="password" autocomplete="current-password" required></label>
+      <label>Neues Passwort<input name="neu" type="password" autocomplete="new-password" minlength="6" required></label>
+      <label>Neues Passwort wiederholen<input name="neu2" type="password" autocomplete="new-password" minlength="6" required></label>
+      <div class="dlg-actions"><button class="btn primary" type="submit">Passwort ändern</button></div>
+    </form>
+  </section>
+
+  <footer class="fuss" id="fuss"></footer>
+</main>
+
+<dialog id="dlg"><form method="dialog" id="dlgForm" novalidate></form></dialog>
+<div class="toast hidden" id="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

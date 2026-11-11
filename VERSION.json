@@ -1,0 +1,7 @@
+{
+  "version": "V1",
+  "datum": "2026-11-11",
+  "aenderungen": [
+    "V1: Erste Version – Projekte/Ausflüge, Teilnehmer mit oder ohne Konto, Rechte pro Teilnehmer, Ausgaben gleich oder gewichtet aufteilen, Ausgleichszahlungen, Auswertung „wer zahlt wem“, Verlauf, CSV-Export, Benutzerverwaltung, Backup"
+  ]
+}

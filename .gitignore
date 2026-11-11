@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.deployed
+*.db
+*.db-wal
+*.db-shm
+testdata/
