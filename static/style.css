@@ -154,7 +154,9 @@ textarea { min-height: 70px; resize: vertical; }
 
 /* Projektkopf + Tabs */
 .proj-head { margin: 2px 2px 10px; }
-.proj-head .sub { color: var(--muted); font-size: 13px; }
+.proj-head .sub { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.link-btn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 2px 6px; border-radius: 6px; font-size: 13px; }
+.link-btn:hover { background: var(--accent-soft); }
 nav.tabs {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: var(--card);
   border: 1px solid var(--line); border-radius: var(--radius); padding: 4px; margin-bottom: 12px;

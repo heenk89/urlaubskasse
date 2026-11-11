@@ -1,7 +1,8 @@
 {
-  "version": "V1.2.1",
+  "version": "V1.3",
   "datum": "2026-11-11",
   "aenderungen": [
+    "V1.3: „✏️ Bearbeiten“ direkt im Projektkopf (Name, Zeitraum, Beschreibung, Währung) für Ersteller/Verwalter/Admin",
     "V1.2.1: Startseite nicht mehr cachen (nach Update kam alte index.html aus dem Browser-Cache)",
     "V1.2: Update-Button für Admins (Fußzeile und ☰-Menü) – holt neue Version aus Gitea ohne Shell, Protokoll wird live angezeigt",
     "V1.1: Klick auf eine Kategorie trägt den Namen in „Wofür“ ein (z. B. „Essen “ – dahinter das Restaurant schreiben)",

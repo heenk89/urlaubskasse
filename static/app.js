@@ -400,9 +400,12 @@ function renderProjekt() {
   const { projekt: p } = S.d;
   titel(p.name, "#/");
   const zr = zeitraum(p.von, p.bis);
+  const voll = S.d.rechte.voll;
   $("#projKopf").innerHTML =
-    `<div class="sub">${esc([zr, p.beschreibung].filter(Boolean).join(" · "))}` +
-    `${p.abgeschlossen ? ' <span class="tag grau">abgeschlossen</span>' : ""}</div>`;
+    `<div class="sub">${esc([zr, p.beschreibung].filter(Boolean).join(" · ") || "ohne Datum")}` +
+    `${p.abgeschlossen ? ' <span class="tag grau">abgeschlossen</span>' : ""}` +
+    `${voll ? ' <button class="link-btn" id="btnProjKopfEdit" title="Name, Zeitraum, Beschreibung ändern">✏️ Bearbeiten</button>' : ""}</div>`;
+  if (voll) $("#btnProjKopfEdit").onclick = () => projektDialog(p);
   $$("#tabs button").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === S.tab);
     b.onclick = () => (location.hash = `#/p/${S.pid}/${b.dataset.tab}`);
