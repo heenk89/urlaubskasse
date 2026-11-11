@@ -8,6 +8,9 @@ SRC="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 cd "$SRC"
 version() { python3 -c 'import json;print(json.load(open("VERSION.json"))["version"])'; }
 
+# Update-Dienst für den Button in der Oberfläche nachrüsten/aktualisieren
+bash "$SRC/install.sh" --units-only
+
 git fetch --quiet
 if [ "$(git rev-parse HEAD)" = "$(git rev-parse '@{u}')" ] && [ "${1:-}" != "--force" ]; then
   echo "Bereits aktuell ($(git rev-parse --short HEAD), $(version))."
@@ -17,6 +20,7 @@ fi
 ALT="$(git rev-parse --short HEAD)"
 git pull --ff-only --quiet
 chmod +x "$SRC"/*.sh "$SRC/urlaubskasse-admin"
+bash "$SRC/install.sh" --units-only
 date '+%d.%m.%Y %H:%M' > "$SRC/.deployed"
 systemctl restart urlaubskasse.service
 sleep 1

@@ -93,7 +93,11 @@ Nur über HTTPS freigeben, nie direkt per Portfreigabe auf Port 80.
 
 ## Update
 
-Neue Version nach GitHub pushen (Gitea spiegelt), dann im Container:
+Neue Version nach GitHub pushen (Gitea spiegelt). Dann als **Admin in der Oberfläche**: Fußzeile „⟳ Update“ oder ☰ → *Update einspielen*. Das Protokoll wird angezeigt, die Seite lädt danach neu.
+
+Technik dahinter: Die App darf selbst nichts (Sandbox). Sie legt nur `/var/lib/urlaubskasse/update.request` an, eine systemd-Path-Unit (`urlaubskasse-update.path`) startet daraufhin `update-runner.sh` als root, der `urlaubskasse-update --force` ausführt und das Protokoll nach `update.log` schreibt.
+
+Oder klassisch im Container:
 ```bash
 urlaubskasse-update
 ```

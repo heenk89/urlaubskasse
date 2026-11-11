@@ -238,6 +238,12 @@ label.check { flex-direction: row; align-items: center; gap: 10px; font-size: 15
 .hinweis { background: var(--amber-soft); color: var(--amber); padding: 10px 12px; border-radius: 10px; font-size: 13px; }
 .info { background: var(--accent-soft); padding: 10px 12px; border-radius: 10px; font-size: 13px; }
 
+pre.log {
+  margin: 0; background: #0d1317; color: #cfe3ea; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 10px 12px; border-radius: 10px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+}
+code { background: var(--bg); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+
 .toast {
   position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 100;
   background: #222; color: #fff; padding: 10px 16px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.3);

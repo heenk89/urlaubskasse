@@ -11,6 +11,40 @@ USER_NAME="urlaubskasse"
 
 if [ "$(id -u)" -ne 0 ]; then echo "Bitte als root ausführen."; exit 1; fi
 
+# Der Dienst läuft ohne Rechte (ProtectSystem=strict, NoNewPrivileges). Für den
+# Update-Button in der Oberfläche legt die App nur eine Datei an; diese
+# Path-Unit startet dann das Update als root.
+schreibe_update_units() {
+  cat > /etc/systemd/system/urlaubskasse-update.path <<UNIT
+[Unit]
+Description=Urlaubskasse – Update-Anforderung aus der Oberfläche
+
+[Path]
+PathExists=$DATA/update.request
+Unit=urlaubskasse-updater.service
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  cat > /etc/systemd/system/urlaubskasse-updater.service <<UNIT
+[Unit]
+Description=Urlaubskasse – Update ausführen
+
+[Service]
+Type=oneshot
+Environment=TZ=Europe/Berlin
+ExecStart=$SRC/update-runner.sh
+UNIT
+  chmod +x "$SRC/update-runner.sh"
+  systemctl daemon-reload
+  systemctl enable --now urlaubskasse-update.path >/dev/null 2>&1 || true
+}
+
+if [ "${1:-}" = "--units-only" ]; then
+  schreibe_update_units
+  exit 0
+fi
+
 # Schutz: nicht versehentlich auf dem Proxmox-Host installieren
 if [ -d /etc/pve ] || command -v pct >/dev/null 2>&1; then
   echo "ABBRUCH: Das sieht nach dem Proxmox-Host aus. Bitte im Container ausführen (pct enter <ID>)."
@@ -63,6 +97,9 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 
+echo "== Update-Dienst (Button in der Oberfläche)"
+schreibe_update_units
+
 echo "== Befehle urlaubskasse-update / urlaubskasse-admin"
 for b in /usr/local/bin /usr/bin; do
   ln -sf "$SRC/update.sh" "$b/urlaubskasse-update"
@@ -84,3 +121,4 @@ echo "Beim ersten Aufruf legst du im Browser dein Admin-Konto an."
 echo "Status:  systemctl status urlaubskasse"
 echo "Update:  urlaubskasse-update"
 echo "Admin-Passwort vergessen:  urlaubskasse-admin <benutzername>"
+echo "Updates gehen auch per Button in der Oberfläche (als Admin: Fußzeile oder ☰-Menü)."

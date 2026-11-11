@@ -181,7 +181,73 @@ function fuss() {
   const s = S.status || {};
   $("#fuss").innerHTML = `Urlaubskasse ${esc(s.version || "")}` +
     (s.datum ? ` vom ${esc(datumDE(s.datum))}` : "") +
-    (s.update ? ` · Update ${esc(s.update)}` : "") + ` · © by Daniel Henk`;
+    (s.update ? ` · Update ${esc(s.update)}` : "") + ` · © by Daniel Henk` +
+    (S.user && S.user.admin ? ` · <a href="#" id="fussUpdate">⟳ Update</a>` : "");
+  const b = $("#fussUpdate");
+  if (b) b.onclick = (e) => { e.preventDefault(); updateDialog(); };
+}
+
+// ------------------------------------------------------------------ Update (Admin)
+async function updateDialog() {
+  let st;
+  try { st = await api("GET", "/api/update"); } catch (err) { return toast(err.message, true); }
+  const versionAlt = st.version;
+  let timer = null;
+  const stop = () => { clearInterval(timer); timer = null; };
+
+  // Status abfragen, Neustart des Dienstes (keine Antwort) aushalten
+  function beobachten(f, log) {
+    let fehler = 0, fertigSeit = 0;
+    stop();
+    timer = setInterval(async () => {
+      let s;
+      try {
+        const r = await fetch("/api/update", { credentials: "same-origin", cache: "no-store" });
+        if (r.status === 401) { stop(); location.reload(); return; }
+        s = await r.json();
+        fehler = 0;
+      } catch {
+        fehler++;
+        if (fehler === 1) log.textContent += "\n(Dienst startet neu …)";
+        if (fehler > 40) { stop(); log.textContent += "\nKeine Antwort – bitte Seite neu laden."; }
+        return;
+      }
+      if (s.log) { log.classList.remove("hidden"); log.textContent = s.log; log.scrollTop = log.scrollHeight; }
+      if (!s.laeuft && s.log && ++fertigSeit >= 2) {
+        stop();
+        const neu = s.version !== versionAlt;
+        f.updGo.textContent = neu ? `Fertig: ${s.version}` : "Fertig";
+        toast(neu ? `Aktualisiert auf ${s.version}` : "Update durchgelaufen");
+        setTimeout(() => location.reload(), 1500);
+      }
+    }, 1500);
+  }
+
+  dialog(`
+    <h3>⟳ Update einspielen</h3>
+    <p class="muted small" style="margin:0">Holt die neueste Version aus Gitea und startet den Dienst neu.
+      Dauert ein paar Sekunden, die Seite ist kurz nicht erreichbar.</p>
+    <div class="info">Installiert: <b>${esc(st.version)}</b>${st.update ? ` · letztes Update ${esc(st.update)}` : ""}</div>
+    ${st.verfuegbar ? "" : `<div class="hinweis">Update-Dienst noch nicht eingerichtet. Einmal in der Shell
+      <code>urlaubskasse-update --force</code> ausführen – danach geht es hier per Klick.</div>`}
+    <pre id="updLog" class="log ${st.log ? "" : "hidden"}">${esc(st.log)}</pre>
+    ${st.log_zeit && !st.laeuft ? `<p class="muted small" style="margin:0">Letztes Protokoll vom ${esc(st.log_zeit)}</p>` : ""}
+    <div class="dlg-actions">
+      <button type="button" class="btn" data-close>Schließen</button>
+      <button type="submit" class="btn primary" name="updGo" ${st.verfuegbar && !st.laeuft ? "" : "disabled"}>${st.laeuft ? "Läuft …" : "Jetzt aktualisieren"}</button>
+    </div>`,
+  async (f) => {
+    await api("POST", "/api/update");
+    f.updGo.disabled = true; f.updGo.textContent = "Läuft …";
+    const log = $("#updLog", f);
+    log.classList.remove("hidden"); log.textContent = "Update angefordert, warte auf den Dienst …";
+    beobachten(f, log);
+    return false;
+  },
+  (f) => {
+    $("#dlg").addEventListener("close", stop, { once: true });
+    if (st.laeuft) beobachten(f, $("#updLog", f));
+  });
 }
 
 function angemeldet() {
@@ -189,6 +255,9 @@ function angemeldet() {
   $("#menuUser").innerHTML = `Angemeldet als <b>${esc(S.user.name)}</b> (${esc(S.user.login)})` +
     (S.user.admin ? ' <span class="tag">Admin</span>' : "");
   $("#menuBenutzer").classList.toggle("hidden", !S.user.admin);
+  $("#menuUpdate").classList.toggle("hidden", !S.user.admin);
+  $("#menuUpdate").onclick = () => { $("#menu").classList.add("hidden"); updateDialog(); };
+  fuss();
 }
 
 function zeigeLogin() {

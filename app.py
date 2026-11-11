@@ -506,6 +506,47 @@ def backup():
     return send_file(tmp, as_attachment=True, download_name=name)
 
 
+# ================================================================ Update aus der Oberfläche
+UPDATE_REQ = DATA_DIR / "update.request"
+UPDATE_RUN = DATA_DIR / "update.running"
+UPDATE_LOG = DATA_DIR / "update.log"
+UPDATE_UNIT = Path("/etc/systemd/system/urlaubskasse-update.path")
+
+
+def update_status():
+    log, stamp = "", ""
+    if UPDATE_LOG.exists():
+        try:
+            log = UPDATE_LOG.read_text(encoding="utf-8", errors="replace")[-6000:]
+            stamp = datetime.fromtimestamp(UPDATE_LOG.stat().st_mtime).strftime("%d.%m.%Y %H:%M")
+        except OSError:
+            pass
+    return {"laeuft": UPDATE_REQ.exists() or UPDATE_RUN.exists(), "log": log, "log_zeit": stamp,
+            "verfuegbar": UPDATE_UNIT.exists(), **version_info()}
+
+
+@app.get("/api/update")
+@admin_noetig
+def update_info():
+    return jsonify(update_status())
+
+
+@app.post("/api/update")
+@admin_noetig
+def update_starten():
+    if not UPDATE_UNIT.exists():
+        raise Fehler("Update-Dienst ist noch nicht eingerichtet. Einmal in der Shell "
+                     "„urlaubskasse-update --force“ ausführen, danach geht es per Button.", 409)
+    if UPDATE_REQ.exists() or UPDATE_RUN.exists():
+        raise Fehler("Ein Update läuft bereits", 409)
+    try:
+        UPDATE_LOG.unlink(missing_ok=True)
+    except OSError:
+        pass
+    UPDATE_REQ.write_text(jetzt(), encoding="utf-8")
+    return jsonify({"ok": True})
+
+
 # ================================================================ Projekt-Kontext & Rechte
 class Ctx:
     """Wer darf was in einem Projekt."""
