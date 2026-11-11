@@ -62,13 +62,13 @@ Benutzer legt der Admin unter ☰ → *Benutzer verwalten* an. Pro Benutzer: „
 
 1. **Repo in Gitea:** `urlaubskasse`, privat (als Mirror des GitHub-Repos).
 
-2. **Container anlegen** (auf dem Proxmox-Host), z. B. als CT 114:
+2. **Container anlegen** (auf dem Proxmox-Host), z. B. als CT 113:
    - Template Debian 13, unprivilegiert
    - 1 Kern, 256 MB RAM, 256 MB Swap, 4 GB Disk
-   - Netzwerk: feste IP, z. B. `192.168.178.114/23`, Gateway wie bei den anderen Containern
+   - Netzwerk: feste IP, z. B. `192.168.179.113/23`, Gateway wie bei den anderen Containern
    - Start at boot: ja
 
-3. **Im Container** (`pct enter 114`):
+3. **Im Container** (`pct enter 113`):
    ```bash
    apt update && apt install -y git
    git clone http://<TOKEN>:x-oauth-basic@192.168.178.66:3000/<gitea-user>/urlaubskasse.git /opt/urlaubskasse-src
@@ -81,7 +81,7 @@ Benutzer legt der Admin unter ☰ → *Benutzer verwalten* an. Pro Benutzer: „
 
 Im Urlaub bist du nicht im Heimnetz. Damit alle mit dem Handy eintragen können:
 
-1. Im Nginx Proxy Manager einen Proxy Host anlegen, z. B. `urlaub.heenk.online` → `http://192.168.178.114:80`, mit Let's-Encrypt-Zertifikat und „Force SSL“.
+1. Im Nginx Proxy Manager einen Proxy Host anlegen, z. B. `urlaub.heenk.online` → `http://192.168.179.113:80`, mit Let's-Encrypt-Zertifikat und „Force SSL“.
 2. Im Container das sichere Cookie einschalten:
    ```bash
    sed -i 's/^#Environment=URLAUB_SECURE_COOKIE=1/Environment=URLAUB_SECURE_COOKIE=1/' /etc/systemd/system/urlaubskasse.service
@@ -101,14 +101,14 @@ Oder klassisch im Container:
 ```bash
 urlaubskasse-update
 ```
-Vom Proxmox-Host aus: `pct exec 114 -- urlaubskasse-update`
+Vom Proxmox-Host aus: `pct exec 113 -- urlaubskasse-update`
 
 Version, Versionsdatum und Zeitpunkt des letzten Updates stehen unten auf der Seite.
 
 ## Passwort vergessen
 
 ```bash
-pct exec 114 -- urlaubskasse-admin daniel
+pct exec 113 -- urlaubskasse-admin daniel
 ```
 Setzt ein neues Passwort (oder legt den Admin neu an) und gibt Admin-Rechte.
 
