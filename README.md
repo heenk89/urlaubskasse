@@ -23,6 +23,7 @@ Auswertung: **Person 3 zahlt an Person 1: 50 €.** Mit „✓ Erledigt“ wird 
 - **Teilnehmer** mit oder ohne Konto. Ohne Konto = nur ein Name, du trägst für ihn ein.
 - **Gewichtung:** Paar = 2, Familie = 4 → zahlt entsprechend mehr. Standard 1.
 - **Ausgaben:** Betrag, wofür, Kategorie, wer hat bezahlt, auf wen wird aufgeteilt (Standard: alle). Einzelne Personen lassen sich pro Ausgabe abwählen (z. B. „trinkt nicht mit“). Cent-Reste werden fair verteilt, die Summe stimmt immer.
+- **Belege:** Fotos der Quittung (direkt mit der Handykamera) oder PDFs an eine Ausgabe anhängen, bis 10 Stück. Fotos werden vor dem Upload im Browser auf 1600 px verkleinert (~200–400 KB). Ablage in `/var/lib/urlaubskasse/belege/`.
 - **Ausgleichszahlungen** (bar/PayPal) eintragen, direkt aus der Auswertung mit „✓ Erledigt“
 - **Auswertung:** Gesamt, pro Person, Tabelle Bezahlt/Anteil/Saldo, **wer zahlt wem** (möglichst wenige Überweisungen), nach Kategorie, Text zum Kopieren (WhatsApp), CSV für Excel, Drucken/PDF
 - **Verlauf:** wer hat wann was eingetragen, geändert oder gelöscht
@@ -53,7 +54,7 @@ Benutzer legt der Admin unter ☰ → *Benutzer verwalten* an. Pro Benutzer: „
 
 - Python 3 + Flask + Waitress, SQLite. Nur Debian-Pakete, kein pip und kein venv.
 - Code: `/opt/urlaubskasse-src` (Git-Klon aus Gitea)
-- Daten: `/var/lib/urlaubskasse/urlaubskasse.db`
+- Daten: `/var/lib/urlaubskasse/urlaubskasse.db`, Belege in `/var/lib/urlaubskasse/belege/`
 - Dienst: `urlaubskasse.service`, läuft als Benutzer `urlaubskasse` auf Port 80
 - Befehle: `urlaubskasse-update`, `urlaubskasse-admin <benutzer>`
 - Login immer aktiv (mehrere Benutzer). Passwörter gehasht, Sperre nach 10 Fehlversuchen für 15 Minuten.
@@ -114,4 +115,4 @@ Setzt ein neues Passwort (oder legt den Admin neu an) und gibt Admin-Rechte.
 
 ## Backup
 
-☰ → *Benutzer verwalten* → *Backup der Datenbank*, oder die Datei `/var/lib/urlaubskasse/urlaubskasse.db` sichern (Proxmox-Backup des Containers reicht auch).
+☰ → *Benutzer verwalten* → *Backup der Datenbank*, oder den Ordner `/var/lib/urlaubskasse/` (Datenbank + Belege) sichern (Proxmox-Backup des Containers reicht auch).

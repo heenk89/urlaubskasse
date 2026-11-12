@@ -109,6 +109,45 @@ async function kopieren(text) {
   return ok;
 }
 
+// ------------------------------------------------------------------ Belege
+/** Foto im Browser auf max. 1600 px verkleinern (JPEG) – spart Upload-Volumen im Urlaub. */
+function fotoVerkleinern(file, max = 1600, qual = 0.82) {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith("image/") || file.type === "image/heic") return resolve(file);
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width: w, height: h } = img;
+      if (Math.max(w, h) <= max && file.size < 600 * 1024) return resolve(file);
+      const f = Math.min(1, max / Math.max(w, h));
+      const c = document.createElement("canvas");
+      c.width = Math.round(w * f); c.height = Math.round(h * f);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob((blob) => resolve(blob ? new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }) : file),
+        "image/jpeg", qual);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+async function belegHochladen(aid, file) {
+  const f = await fotoVerkleinern(file);
+  const fd = new FormData();
+  fd.append("datei", f, f.name);
+  fd.append("name", file.name);
+  const r = await fetch(`/api/ausgaben/${aid}/belege`, { method: "POST", body: fd, credentials: "same-origin",
+    headers: { "X-Requested-With": "urlaubskasse" } });
+  let data = null;
+  try { data = await r.json(); } catch { /* leer */ }
+  if (!r.ok) throw new Error((data && data.fehler) || `Upload fehlgeschlagen (${r.status})`);
+  return data;
+}
+
+function belegIcon(typ) { return typ === "application/pdf" ? "📄" : "🧾"; }
+function groesse(b) { return b > 1024 * 1024 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB"; }
+
 // ------------------------------------------------------------------ Dialog
 function dialog(html, onSubmit, setup) {
   const dlg = $("#dlg");
@@ -481,7 +520,8 @@ function renderAusgaben() {
         <div class="main"><div class="t">${esc(a.beschreibung)}</div>
           <div class="s">bezahlt von <b>${esc(tnName(a.zahler_id))}</b> · für ${esc(auf)}${a.notiz ? " · " + esc(a.notiz) : ""}</div></div>
         <div class="r"><b class="num">${geld(a.betrag)}</b>
-          ${mein ? `<div class="s num">dein Anteil ${geld(mein.betrag)}</div>` : ""}</div></div>`;
+          ${mein ? `<div class="s num">dein Anteil ${geld(mein.betrag)}</div>` : ""}
+          ${a.belege.length ? `<div class="s">🧾 ${a.belege.length} Beleg${a.belege.length > 1 ? "e" : ""}</div>` : ""}</div></div>`;
     }
     box.innerHTML = html;
     $$(".item", box).forEach((it) => (it.onclick = () => {
@@ -505,6 +545,7 @@ function ausgabeDialog(a = null) {
   const gewSichtbar = tns.some((t) => t.gewicht !== 1) || (a && a.anteile.some((x) => x.gewicht !== 1));
   if (!tns.length) { toast("Lege zuerst Teilnehmer an", true); location.hash = `#/p/${S.pid}/teilnehmer`; return; }
   const dis = nurLesen ? "disabled" : "";
+  const wartend = [];  // Dateien, die bei einer neuen Ausgabe erst nach dem Speichern hochgeladen werden
 
   dialog(`
     <h3>${neu ? "＋ Neue Ausgabe" : nurLesen ? "Ausgabe" : "Ausgabe bearbeiten"}</h3>
@@ -532,6 +573,12 @@ function ausgabeDialog(a = null) {
         </div>`).join("")}</div>
     </div>
     <label>Notiz (optional)<input name="notiz" value="${esc(a ? a.notiz : "")}" maxlength="500" ${dis}></label>
+    <div>
+      <div class="auswahl-kopf"><span>🧾 Belege / Quittungen</span>
+        ${nurLesen ? "" : `<label class="btn small" style="cursor:pointer">📷 Foto / PDF
+          <input type="file" id="belegInput" accept="image/*,application/pdf" multiple hidden></label>`}</div>
+      <div class="belege" id="belege"></div>
+    </div>
     ${a ? `<p class="muted small" style="margin:0">Eingetragen von ${esc(a.ersteller_name || "?")} am ${esc(a.erstellt.slice(0, 16).split(" ").map((x, i) => i ? x : datumDE(x)).join(" "))}${a.geaendert ? ", zuletzt geändert " + esc(a.geaendert.slice(0, 16).split(" ").map((x, i) => i ? x : datumDE(x)).join(" ")) : ""}</p>` : ""}
     <div class="dlg-actions">
       ${a && a.darf_loeschen ? `<button type="button" class="btn danger links" id="btnDel">🗑 Löschen</button>` : ""}
@@ -548,12 +595,64 @@ function ausgabeDialog(a = null) {
       anteile: $$("#auswahl input[type=checkbox]", f).filter((c) => c.checked).map((c) => ({
         teilnehmer_id: +c.dataset.t, gewicht: +$(`[data-g="${c.dataset.t}"]`, f).value || 1 })),
     };
-    if (neu) await api("POST", `/api/projekte/${S.pid}/ausgaben`, body);
-    else await api("PUT", `/api/ausgaben/${a.id}`, body);
+    let aid = a ? a.id : null;
+    if (neu) aid = (await api("POST", `/api/projekte/${S.pid}/ausgaben`, body)).id;
+    else await api("PUT", `/api/ausgaben/${aid}`, body);
+    if (wartend.length) {
+      toast(`Lade ${wartend.length} Beleg(e) hoch …`);
+      for (const file of wartend) {
+        try { await belegHochladen(aid, file); } catch (err) { toast(`${file.name}: ${err.message}`, true); }
+      }
+    }
     toast(neu ? "Ausgabe eingetragen" : "Gespeichert");
     await ladeProjekt();
   },
   (f) => {
+    // ---- Belege
+    const belegeBox = $("#belege", f);
+    let vorhandene = a ? [...a.belege] : [];
+    const zeigeBelege = () => {
+      const teile = vorhandene.map((b) => `
+        <div class="beleg" data-b="${b.id}">
+          <a href="/api/belege/${b.id}" target="_blank" rel="noopener" title="${esc(b.name)}">
+            ${b.typ === "application/pdf" ? `<span class="pdf">📄</span>` : `<img src="/api/belege/${b.id}" alt="" loading="lazy">`}</a>
+          <div class="bn">${esc(b.name)}<br><span class="muted">${groesse(b.groesse)}</span></div>
+          ${nurLesen ? "" : `<button type="button" class="x" data-del="${b.id}" title="Beleg löschen">✕</button>`}
+        </div>`);
+      teile.push(...wartend.map((file, i) => `
+        <div class="beleg neu">
+          <span class="pdf">${file.type === "application/pdf" ? "📄" : "🖼️"}</span>
+          <div class="bn">${esc(file.name)}<br><span class="muted">wird nach dem Speichern hochgeladen</span></div>
+          <button type="button" class="x" data-w="${i}" title="Entfernen">✕</button>
+        </div>`));
+      belegeBox.innerHTML = teile.join("") || `<p class="muted small" style="margin:0">Noch kein Beleg.${nurLesen ? "" : " Foto der Quittung direkt mit der Kamera aufnehmen oder Datei wählen."}</p>`;
+      $$("[data-del]", belegeBox).forEach((b) => (b.onclick = async () => {
+        if (!confirm("Beleg löschen?")) return;
+        try {
+          await api("DELETE", `/api/belege/${b.dataset.del}`);
+          vorhandene = vorhandene.filter((x) => x.id !== +b.dataset.del);
+          if (a) a.belege = vorhandene;
+          zeigeBelege();
+        } catch (err) { toast(err.message, true); }
+      }));
+      $$("[data-w]", belegeBox).forEach((b) => (b.onclick = () => { wartend.splice(+b.dataset.w, 1); zeigeBelege(); }));
+    };
+    zeigeBelege();
+    const inp = $("#belegInput", f);
+    if (inp) inp.onchange = async () => {
+      const files = [...inp.files]; inp.value = "";
+      if (!files.length) return;
+      if (neu) { wartend.push(...files); zeigeBelege(); return; }
+      for (const file of files) {
+        try {
+          toast(`Lade ${file.name} hoch …`);
+          const b = await belegHochladen(a.id, file);
+          vorhandene.push(b); a.belege = vorhandene; zeigeBelege();
+        } catch (err) { toast(`${file.name}: ${err.message}`, true); }
+      }
+      toast("Beleg gespeichert");
+    };
+
     const vorschau = () => {
       const b = parseBetrag(f.betrag.value);
       const gew = $$("#auswahl input[type=checkbox]", f).filter((c) => c.checked)

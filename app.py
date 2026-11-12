@@ -27,6 +27,10 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("URLAUB_DATA", "/var/lib/urlaubskasse"))
 DB_PATH = DATA_DIR / "urlaubskasse.db"
+BELEG_DIR = DATA_DIR / "belege"
+MAX_BELEG = 12 * 1024 * 1024
+BELEG_TYPEN = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
+               "image/heic": ".heic", "application/pdf": ".pdf"}
 
 KATEGORIEN = {
     "unterkunft": "🏠 Unterkunft",
@@ -52,7 +56,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("URLAUB_SECURE_COOKIE") == "1"
 app.config["SESSION_COOKIE_NAME"] = "urlaubskasse"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=90)
-app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = MAX_BELEG + 1024 * 1024
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS einstellungen (
@@ -125,6 +129,17 @@ CREATE TABLE IF NOT EXISTS verlauf (
     text TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_verlauf_projekt ON verlauf(projekt_id);
+CREATE TABLE IF NOT EXISTS belege (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ausgabe_id INTEGER NOT NULL REFERENCES ausgaben(id) ON DELETE CASCADE,
+    datei TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    typ TEXT NOT NULL,
+    groesse INTEGER NOT NULL DEFAULT 0,
+    hochgeladen_von INTEGER REFERENCES benutzer(id) ON DELETE SET NULL,
+    erstellt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_belege_ausgabe ON belege(ausgabe_id);
 """
 
 
@@ -146,6 +161,7 @@ def close_db(_exc):
 
 def init_db():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    BELEG_DIR.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(DB_PATH)
     con.executescript(SCHEMA)
     con.execute("PRAGMA journal_mode = WAL")
@@ -285,7 +301,9 @@ def csrf_schutz():
     # Ändernde API-Aufrufe nur als JSON: ein fremdes Formular kann kein JSON
     # mit Cookie senden (SameSite=Lax + kein CORS) -> Schutz gegen CSRF.
     if request.method in ("POST", "PUT", "PATCH", "DELETE") and request.path.startswith("/api/"):
-        if not request.is_json:
+        # Datei-Uploads kommen als multipart; der eigene Header kann von einem
+        # fremden HTML-Formular nicht gesetzt werden -> gleicher Schutz.
+        if not request.is_json and request.headers.get("X-Requested-With") != "urlaubskasse":
             abort(415)
 
 
@@ -674,6 +692,10 @@ def projekt_daten(pid):
     for r in con.execute("""SELECT an.* FROM anteile an JOIN ausgaben a ON a.id=an.ausgabe_id
                             WHERE a.projekt_id=? ORDER BY an.teilnehmer_id""", (pid,)):
         ant.setdefault(r["ausgabe_id"], []).append((r["teilnehmer_id"], r["gewicht"]))
+    belege = {}
+    for r in con.execute("""SELECT b.id, b.ausgabe_id, b.name, b.typ, b.groesse FROM belege b
+                            JOIN ausgaben a ON a.id=b.ausgabe_id WHERE a.projekt_id=? ORDER BY b.id""", (pid,)):
+        belege.setdefault(r["ausgabe_id"], []).append(dict(r))
 
     s = {t["id"]: {"bezahlt": 0, "anteil": 0, "gezahlt": 0, "erhalten": 0} for t in tns}
     exakt = {t["id"]: Fraction(0) for t in tns}  # Anteile ungerundet, gerundet wird erst die Summe
@@ -695,6 +717,7 @@ def projekt_daten(pid):
             s[a["zahler_id"]]["gezahlt"] += a["betrag"]
             s[a["empfaenger_id"]]["erhalten"] += a["betrag"]
             d["anteile"] = []
+        d["belege"] = belege.get(a["id"], [])
         ausgaben.append(d)
 
     # Summe der Anteile auf Cent runden (größter Rest zuerst) -> Summe == gesamt
@@ -840,6 +863,8 @@ def projekt_loeschen(pid):
     if not (ctx.ist_ersteller or ctx.ist_admin):
         raise Fehler("Nur der Projektersteller oder ein Admin darf das Projekt löschen", 403)
     con = db()
+    belege_loeschen(con, "SELECT b.datei FROM belege b JOIN ausgaben a ON a.id=b.ausgabe_id WHERE a.projekt_id=?", (pid,))
+    con.execute("DELETE FROM belege WHERE ausgabe_id IN (SELECT id FROM ausgaben WHERE projekt_id=?)", (pid,))
     con.execute("DELETE FROM anteile WHERE ausgabe_id IN (SELECT id FROM ausgaben WHERE projekt_id=?)", (pid,))
     con.execute("DELETE FROM ausgaben WHERE projekt_id=?", (pid,))
     con.execute("DELETE FROM teilnehmer WHERE projekt_id=?", (pid,))
@@ -1074,9 +1099,93 @@ def ausgabe_loeschen(aid):
     con = db()
     tns = {r["id"]: r for r in con.execute("SELECT * FROM teilnehmer WHERE projekt_id=?", (a["projekt_id"],))}
     f = dict(a) | {"_tns": tns}
+    belege_loeschen(con, "SELECT datei FROM belege WHERE ausgabe_id=?", (aid,))
+    con.execute("DELETE FROM belege WHERE ausgabe_id=?", (aid,))
     con.execute("DELETE FROM anteile WHERE ausgabe_id=?", (aid,))
     con.execute("DELETE FROM ausgaben WHERE id=?", (aid,))
     log(a["projekt_id"], "Gelöscht: " + beschreibe(f, ctx.p["waehrung"]))
+    con.commit()
+    return jsonify({"ok": True})
+
+
+# ================================================================ Belege (Quittungen, Fotos)
+def belege_loeschen(con, sql, params):
+    for r in con.execute(sql, params):
+        p = BELEG_DIR / r[0]
+        if p.is_file():
+            try:
+                p.unlink()
+            except OSError:
+                pass
+
+
+@app.post("/api/ausgaben/<int:aid>/belege")
+@login_noetig
+def beleg_hochladen(aid):
+    a = lade_ausgabe(aid)
+    ctx = lade_ctx(a["projekt_id"])
+    if not ctx.darf("r_bearbeiten", a):
+        raise Fehler("Du darfst an diesen Eintrag keine Belege anhängen", 403)
+    con = db()
+    if con.execute("SELECT COUNT(*) FROM belege WHERE ausgabe_id=?", (aid,)).fetchone()[0] >= 10:
+        raise Fehler("Maximal 10 Belege pro Eintrag")
+    datei = request.files.get("datei")
+    if not datei:
+        raise Fehler("Keine Datei")
+    typ = (datei.mimetype or "").split(";")[0].lower()
+    ext = BELEG_TYPEN.get(typ)
+    if not ext:
+        raise Fehler("Nur Fotos (JPG, PNG, WebP, HEIC) oder PDF")
+    daten = datei.read(MAX_BELEG + 1)
+    if len(daten) > MAX_BELEG:
+        raise Fehler("Datei zu groß (max. 12 MB)")
+    if len(daten) < 10:
+        raise Fehler("Datei ist leer")
+    name = secrets.token_urlsafe(16) + ext
+    (BELEG_DIR / name).write_bytes(daten)
+    orig = (request.form.get("name") or datei.filename or "Beleg")[:120]
+    bid = con.execute("""INSERT INTO belege (ausgabe_id,datei,name,typ,groesse,hochgeladen_von,erstellt)
+                         VALUES (?,?,?,?,?,?,?)""",
+                      (aid, name, orig, typ, len(daten), ctx.u["id"], jetzt())).lastrowid
+    log(a["projekt_id"], f"Beleg zu „{a['beschreibung']}“ hochgeladen")
+    con.commit()
+    return jsonify({"ok": True, "id": bid, "name": orig, "typ": typ, "groesse": len(daten)})
+
+
+def lade_beleg(bid):
+    b = db().execute("SELECT b.*, a.projekt_id, a.beschreibung FROM belege b "
+                     "JOIN ausgaben a ON a.id=b.ausgabe_id WHERE b.id=?", (bid,)).fetchone()
+    if not b:
+        abort(404)
+    return b
+
+
+@app.get("/api/belege/<int:bid>")
+@login_noetig
+def beleg_anzeigen(bid):
+    b = lade_beleg(bid)
+    lade_ctx(b["projekt_id"])  # 404 wenn kein Zugriff aufs Projekt
+    p = BELEG_DIR / b["datei"]
+    if not p.is_file():
+        abort(404)
+    resp = send_file(p, mimetype=b["typ"], download_name=b["name"],
+                     as_attachment=request.args.get("dl") == "1", max_age=3600)
+    resp.headers["Cache-Control"] = "private, max-age=3600"
+    return resp
+
+
+@app.delete("/api/belege/<int:bid>")
+@login_noetig
+def beleg_loeschen(bid):
+    b = lade_beleg(bid)
+    ctx = lade_ctx(b["projekt_id"])
+    a = lade_ausgabe(b["ausgabe_id"])
+    if not ctx.darf("r_bearbeiten", a):
+        raise Fehler("Du darfst diesen Beleg nicht löschen", 403)
+    con = db()
+    belege_loeschen(con, "SELECT datei FROM belege WHERE id=?", (bid,))
+    con.execute("DELETE FROM belege WHERE id=?", (bid,))
+    log(b["projekt_id"], f"Beleg zu „{b['beschreibung']}“ gelöscht")
     con.commit()
     return jsonify({"ok": True})
 

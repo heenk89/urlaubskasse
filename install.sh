@@ -61,7 +61,7 @@ echo "Europe/Berlin" > /etc/timezone
 
 echo "== Benutzer und Datenordner"
 id "$USER_NAME" >/dev/null 2>&1 || useradd --system --home "$DATA" --shell /usr/sbin/nologin "$USER_NAME"
-mkdir -p "$DATA"
+mkdir -p "$DATA/belege"
 chown -R "$USER_NAME:$USER_NAME" "$DATA"
 chmod 750 "$DATA"
 chmod +x "$SRC"/*.sh "$SRC/urlaubskasse-admin"

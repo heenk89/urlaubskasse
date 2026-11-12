@@ -1,7 +1,8 @@
 {
-  "version": "V1.3",
+  "version": "V1.4",
   "datum": "2026-11-11",
   "aenderungen": [
+    "V1.4: Belege – Fotos (Kamera) oder PDFs an Ausgaben anhängen, bis 10 pro Eintrag; Fotos werden im Browser auf 1600 px verkleinert",
     "V1.3: „✏️ Bearbeiten“ direkt im Projektkopf (Name, Zeitraum, Beschreibung, Währung) für Ersteller/Verwalter/Admin",
     "V1.2.1: Startseite nicht mehr cachen (nach Update kam alte index.html aus dem Browser-Cache)",
     "V1.2: Update-Button für Admins (Fußzeile und ☰-Menü) – holt neue Version aus Gitea ohne Shell, Protokoll wird live angezeigt",
